@@ -16,9 +16,6 @@ var (
 	colorText      = lipgloss.Color("#CDD6F4")
 
 	// Layout
-	appStyle = lipgloss.NewStyle().
-			Background(colorBg)
-
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(colorPrimary).

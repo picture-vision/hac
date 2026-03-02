@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bateman/hac/internal/model"
 )
@@ -21,7 +22,7 @@ func NewRESTClient(baseURL, token string) *RESTClient {
 	return &RESTClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
-		http:    &http.Client{},
+		http:    &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -49,7 +50,7 @@ func (c *RESTClient) do(method, path string, body interface{}) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20)) // 64 MB max
 	if err != nil {
 		return nil, err
 	}

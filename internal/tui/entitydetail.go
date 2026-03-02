@@ -239,22 +239,9 @@ func (d EntityDetail) availableActions() []action {
 func (d EntityDetail) toggleEntity() tea.Cmd {
 	return func() tea.Msg {
 		domain := d.entity.Domain()
-		service := "toggle"
+		service := model.ToggleServiceFor(domain, d.entity.State)
 		target := map[string]interface{}{
 			"entity_id": d.entity.EntityID,
-		}
-
-		switch domain {
-		case "scene":
-			service = "turn_on"
-		case "script":
-			service = "turn_on"
-		case "lock":
-			if d.entity.State == "locked" {
-				service = "unlock"
-			} else {
-				service = "lock"
-			}
 		}
 
 		err := d.ws.CallService(domain, service, target, nil)

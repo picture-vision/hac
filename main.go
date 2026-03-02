@@ -33,6 +33,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	if strings.HasPrefix(cfg.URL, "http://") && !cfg.Insecure {
+		fmt.Fprintln(os.Stderr, "Error: connecting over plain HTTP exposes your token in cleartext.")
+		fmt.Fprintln(os.Stderr, "Use https:// or set 'insecure: true' in config (or HAC_INSECURE=1) to proceed.")
+		os.Exit(1)
+	}
+
 	if len(os.Args) > 1 {
 		os.Exit(runCLI(cfg, os.Args[1:]))
 	}
@@ -86,24 +92,16 @@ func cmdToggle(client *hass.RESTClient, args []string) int {
 	}
 	domain := entityID[:i]
 
-	service := "toggle"
-	switch domain {
-	case "scene":
-		service = "turn_on"
-	case "script":
-		service = "turn_on"
-	case "lock":
+	state := ""
+	if domain == "lock" {
 		entity, err := client.GetState(entityID)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error getting state: %v\n", err)
 			return 1
 		}
-		if entity.State == "locked" {
-			service = "unlock"
-		} else {
-			service = "lock"
-		}
+		state = entity.State
 	}
+	service := model.ToggleServiceFor(domain, state)
 
 	payload := map[string]interface{}{
 		"entity_id": entityID,
@@ -385,12 +383,15 @@ func cmdList(client *hass.RESTClient, args []string) int {
 	return 0
 }
 
-const defaultConfig = `# Home Assistant URL (e.g. http://homeassistant.local:8123)
+const defaultConfig = `# Home Assistant URL (e.g. https://homeassistant.local:8123)
 url: ""
 
 # Long-lived access token
-# Generate at: http://homeassistant.local:8123/profile/security
+# Generate at: https://homeassistant.local:8123/profile/security
 token: ""
+
+# Allow plain HTTP connections (token sent in cleartext)
+insecure: false
 `
 
 // hac init

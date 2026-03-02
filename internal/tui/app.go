@@ -269,22 +269,9 @@ func (a *App) resizeViews() {
 func (a App) toggleEntity(entity model.Entity) tea.Cmd {
 	return func() tea.Msg {
 		domain := entity.Domain()
-		service := "toggle"
+		service := model.ToggleServiceFor(domain, entity.State)
 		target := map[string]interface{}{
 			"entity_id": entity.EntityID,
-		}
-
-		switch domain {
-		case "scene":
-			service = "turn_on"
-		case "script":
-			service = "turn_on"
-		case "lock":
-			if entity.State == "locked" {
-				service = "unlock"
-			} else {
-				service = "lock"
-			}
 		}
 
 		err := a.ws.CallService(domain, service, target, nil)

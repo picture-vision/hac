@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,7 +72,10 @@ type WSClient struct {
 }
 
 func NewWSClient(baseURL, token string) *WSClient {
-	u, _ := url.Parse(baseURL)
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		u = &url.URL{Scheme: "http", Host: baseURL}
+	}
 	scheme := "ws"
 	if u.Scheme == "https" {
 		scheme = "wss"
@@ -85,6 +87,7 @@ func NewWSClient(baseURL, token string) *WSClient {
 		token:   token,
 		msgCh:   make(chan interface{}, 64),
 		pending: make(map[int]chan WSMessage),
+		done:    make(chan struct{}),
 	}
 }
 
@@ -99,7 +102,10 @@ func (c *WSClient) Connect() {
 func (c *WSClient) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.done != nil {
+	select {
+	case <-c.done:
+		// Already closed
+	default:
 		close(c.done)
 	}
 	if c.conn != nil {
@@ -117,18 +123,19 @@ func (c *WSClient) connectLoop() {
 		c.send(WSDisconnected{})
 
 		// Check if explicitly closed
-		c.mu.Lock()
-		if c.done != nil {
-			select {
-			case <-c.done:
-				c.mu.Unlock()
-				return
-			default:
-			}
+		select {
+		case <-c.done:
+			return
+		default:
 		}
-		c.mu.Unlock()
 
-		time.Sleep(backoff)
+		// Wait with backoff, but respect Close()
+		select {
+		case <-c.done:
+			return
+		case <-time.After(backoff):
+		}
+
 		if backoff < 30*time.Second {
 			backoff *= 2
 		}
@@ -143,7 +150,6 @@ func (c *WSClient) runConnection() error {
 
 	c.mu.Lock()
 	c.conn = conn
-	c.done = make(chan struct{})
 	c.nextID.Store(1)
 	c.mu.Unlock()
 
@@ -462,14 +468,9 @@ func (c *WSClient) CallService(domain, service string, target map[string]interfa
 		}
 		return nil
 	case <-time.After(10 * time.Second):
+		c.pendingMu.Lock()
+		delete(c.pending, id)
+		c.pendingMu.Unlock()
 		return fmt.Errorf("timeout")
 	}
-}
-
-// WSURLFromHTTP converts an HTTP URL to a WebSocket URL
-func WSURLFromHTTP(httpURL string) string {
-	if strings.HasPrefix(httpURL, "https") {
-		return strings.Replace(httpURL, "https", "wss", 1) + "/api/websocket"
-	}
-	return strings.Replace(httpURL, "http", "ws", 1) + "/api/websocket"
 }

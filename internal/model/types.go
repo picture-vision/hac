@@ -60,3 +60,19 @@ type StateChangedEvent struct {
 	OldState Entity `json:"old_state"`
 	NewState Entity `json:"new_state"`
 }
+
+// ToggleServiceFor returns the appropriate service name for toggling
+// an entity based on its domain and current state.
+func ToggleServiceFor(domain, state string) string {
+	switch domain {
+	case "scene", "script":
+		return "turn_on"
+	case "lock":
+		if state == "locked" {
+			return "unlock"
+		}
+		return "lock"
+	default:
+		return "toggle"
+	}
+}

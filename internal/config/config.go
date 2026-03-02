@@ -9,8 +9,9 @@ import (
 )
 
 type Config struct {
-	URL   string `yaml:"url"`
-	Token string `yaml:"token"`
+	URL      string `yaml:"url"`
+	Token    string `yaml:"token"`
+	Insecure bool   `yaml:"insecure"`
 }
 
 // Path returns the config file path.
@@ -29,7 +30,9 @@ func Load() (*Config, error) {
 	if err == nil {
 		data, err := os.ReadFile(path)
 		if err == nil {
-			_ = yaml.Unmarshal(data, cfg)
+			if err := yaml.Unmarshal(data, cfg); err != nil {
+				return nil, fmt.Errorf("parsing %s: %w", path, err)
+			}
 		}
 	}
 
@@ -38,6 +41,9 @@ func Load() (*Config, error) {
 	}
 	if v := os.Getenv("HAC_TOKEN"); v != "" {
 		cfg.Token = v
+	}
+	if v := os.Getenv("HAC_INSECURE"); v == "1" || v == "true" {
+		cfg.Insecure = true
 	}
 
 	if cfg.URL == "" {

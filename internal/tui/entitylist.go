@@ -159,10 +159,7 @@ func (e EntityList) View() string {
 		return ""
 	}
 
-	style := panelStyle
-	if true { // list is always "active" when in entity list view
-		style = activePanelStyle
-	}
+	style := activePanelStyle
 
 	var b strings.Builder
 
