@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,6 +50,8 @@ func runCLI(cfg *config.Config, args []string) int {
 	switch args[0] {
 	case "toggle":
 		return cmdToggle(client, args[1:])
+	case "brightness", "bri":
+		return cmdBrightness(client, args[1:])
 	case "call":
 		return cmdCall(client, args[1:])
 	case "state":
@@ -127,6 +131,76 @@ func cmdToggle(client *hass.RESTClient, args []string) int {
 	return 0
 }
 
+// hac brightness <entity_id> <value|+N|-N>
+func cmdBrightness(client *hass.RESTClient, args []string) int {
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "Usage: hac brightness <entity_id> <value|+N|-N>")
+		fmt.Fprintln(os.Stderr, "  value: 0-255 (absolute) or +N/-N (relative)")
+		return 1
+	}
+	entityID := args[0]
+	valStr := args[1]
+
+	if !strings.HasPrefix(entityID, "light.") {
+		fmt.Fprintf(os.Stderr, "Error: brightness only works on light entities (got %q)\n", entityID)
+		return 1
+	}
+
+	var brightness int
+
+	if strings.HasPrefix(valStr, "+") || strings.HasPrefix(valStr, "-") {
+		// Relative adjustment — fetch current brightness first
+		entity, err := client.GetState(entityID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting state: %v\n", err)
+			return 1
+		}
+
+		current := 0.0
+		if b, ok := entity.Attributes["brightness"]; ok {
+			switch v := b.(type) {
+			case float64:
+				current = v
+			case int:
+				current = float64(v)
+			}
+		}
+
+		delta, err := strconv.Atoi(valStr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid brightness value: %q\n", valStr)
+			return 1
+		}
+		brightness = int(math.Round(current)) + delta
+	} else {
+		// Absolute value
+		val, err := strconv.Atoi(valStr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid brightness value: %q\n", valStr)
+			return 1
+		}
+		brightness = val
+	}
+
+	if brightness < 0 {
+		brightness = 0
+	} else if brightness > 255 {
+		brightness = 255
+	}
+
+	payload := map[string]interface{}{
+		"entity_id":  entityID,
+		"brightness": brightness,
+	}
+	_, err := client.CallService("light", "turn_on", payload)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	fmt.Printf("%s: brightness %d\n", entityID, brightness)
+	return 0
+}
+
 // hac call <domain> <service> <entity_id> [json_data]
 func cmdCall(client *hass.RESTClient, args []string) int {
 	if len(args) < 3 {
@@ -171,7 +245,33 @@ func cmdState(client *hass.RESTClient, args []string) int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
-	fmt.Println(entity.State)
+
+	if entity.State == "off" || entity.Domain() == "light" {
+		pct := 0
+		if b, ok := entity.Attributes["brightness"]; ok {
+			if v, ok := b.(float64); ok {
+				pct = int(math.Round(v / 255 * 100))
+			}
+		}
+
+		var icon string
+		switch {
+		case pct == 0 || entity.State == "off":
+			fmt.Printf("󰹐 Off\n")
+			return 0
+		case pct < 30:
+			icon = "󱩐"
+		case pct < 60:
+			icon = "󱩒"
+		case pct < 100:
+			icon = "󱩔"
+		default:
+			icon = "󰌵"
+		}
+		fmt.Printf("%s %d%%\n", icon, pct)
+	} else {
+		fmt.Println(entity.State)
+	}
 	return 0
 }
 
@@ -251,6 +351,7 @@ Commands:
   init                                       Create default config file
   list [filter]                              List entities (alias: ls)
   toggle <entity_id>                         Toggle a device
+  brightness <entity_id> <value|+N|-N>       Set light brightness (alias: bri)
   call <domain> <service> <entity_id> [json] Call a service
   state <entity_id>                          Print entity state
 

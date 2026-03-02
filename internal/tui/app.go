@@ -250,6 +250,7 @@ func (a App) renderHelp() string {
 	help += fmt.Sprintf("  %s      %s\n", labelStyle.Render("/"), valueStyle.Render("search/filter"))
 	help += fmt.Sprintf("  %s    %s\n", labelStyle.Render("tab"), valueStyle.Render("toggle area grouping"))
 	help += fmt.Sprintf("  %s      %s\n", labelStyle.Render("t"), valueStyle.Render("toggle entity on/off"))
+	help += fmt.Sprintf("  %s    %s\n", labelStyle.Render("+/-"), valueStyle.Render("brightness up/down (lights)"))
 	help += fmt.Sprintf("  %s      %s\n", labelStyle.Render("s"), valueStyle.Render("open service caller"))
 	help += fmt.Sprintf("  %s      %s\n", labelStyle.Render("?"), valueStyle.Render("toggle this help"))
 	help += fmt.Sprintf("  %s      %s\n", labelStyle.Render("q"), valueStyle.Render("quit"))

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -59,6 +60,14 @@ func (d EntityDetail) Update(msg tea.Msg) (EntityDetail, tea.Cmd) {
 			}
 		case key.Matches(msg, keys.Toggle):
 			return d, d.toggleEntity()
+		case key.Matches(msg, keys.BrightnessUp):
+			if d.entity.Domain() == "light" {
+				return d, d.adjustBrightness(25)
+			}
+		case key.Matches(msg, keys.BrightnessDown):
+			if d.entity.Domain() == "light" {
+				return d, d.adjustBrightness(-25)
+			}
 		}
 	case serviceResultMsg:
 		if msg.err != nil {
@@ -162,7 +171,12 @@ type action struct {
 func (d EntityDetail) availableActions() []action {
 	domain := d.entity.Domain()
 	switch domain {
-	case "light", "switch", "input_boolean", "fan":
+	case "light":
+		return []action{
+			{key: "t", label: "toggle"},
+			{key: "+/-", label: "brightness up/down"},
+		}
+	case "switch", "input_boolean", "fan":
 		return []action{
 			{key: "t", label: "toggle"},
 		}
@@ -217,6 +231,37 @@ func (d EntityDetail) toggleEntity() tea.Cmd {
 		}
 
 		err := d.ws.CallService(domain, service, target, nil)
+		return serviceResultMsg{err: err}
+	}
+}
+
+func (d EntityDetail) adjustBrightness(delta int) tea.Cmd {
+	return func() tea.Msg {
+		current := 0.0
+		if b, ok := d.entity.Attributes["brightness"]; ok {
+			switch v := b.(type) {
+			case float64:
+				current = v
+			case int:
+				current = float64(v)
+			}
+		}
+
+		newBrightness := int(math.Round(current)) + delta
+		if newBrightness < 0 {
+			newBrightness = 0
+		} else if newBrightness > 255 {
+			newBrightness = 255
+		}
+
+		target := map[string]interface{}{
+			"entity_id": d.entity.EntityID,
+		}
+		data := map[string]interface{}{
+			"brightness": newBrightness,
+		}
+
+		err := d.ws.CallService("light", "turn_on", target, data)
 		return serviceResultMsg{err: err}
 	}
 }
