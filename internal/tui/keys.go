@@ -19,6 +19,12 @@ type keyMap struct {
 	PageDown       key.Binding
 	BrightnessUp   key.Binding
 	BrightnessDown key.Binding
+	RedUp          key.Binding
+	RedDown        key.Binding
+	GreenUp        key.Binding
+	GreenDown      key.Binding
+	BlueUp         key.Binding
+	BlueDown       key.Binding
 }
 
 var keys = keyMap{
@@ -85,5 +91,29 @@ var keys = keyMap{
 	BrightnessDown: key.NewBinding(
 		key.WithKeys("-", "_"),
 		key.WithHelp("-", "brightness down"),
+	),
+	RedUp: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "red up"),
+	),
+	RedDown: key.NewBinding(
+		key.WithKeys("R"),
+		key.WithHelp("R", "red down"),
+	),
+	GreenUp: key.NewBinding(
+		key.WithKeys("f"),
+		key.WithHelp("f", "green up"),
+	),
+	GreenDown: key.NewBinding(
+		key.WithKeys("F"),
+		key.WithHelp("F", "green down"),
+	),
+	BlueUp: key.NewBinding(
+		key.WithKeys("b"),
+		key.WithHelp("b", "blue up"),
+	),
+	BlueDown: key.NewBinding(
+		key.WithKeys("B"),
+		key.WithHelp("B", "blue down"),
 	),
 }

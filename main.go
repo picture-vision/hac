@@ -52,6 +52,12 @@ func runCLI(cfg *config.Config, args []string) int {
 		return cmdToggle(client, args[1:])
 	case "brightness", "bri":
 		return cmdBrightness(client, args[1:])
+	case "red":
+		return cmdColor(client, args[1:], 0)
+	case "green":
+		return cmdColor(client, args[1:], 1)
+	case "blue":
+		return cmdColor(client, args[1:], 2)
 	case "call":
 		return cmdCall(client, args[1:])
 	case "state":
@@ -198,6 +204,79 @@ func cmdBrightness(client *hass.RESTClient, args []string) int {
 		return 1
 	}
 	fmt.Printf("%s: brightness %d\n", entityID, brightness)
+	return 0
+}
+
+// hac red|green|blue <entity_id> <value|+N|-N>
+func cmdColor(client *hass.RESTClient, args []string, channelIndex int) int {
+	channelNames := []string{"red", "green", "blue"}
+	if len(args) < 2 {
+		fmt.Fprintf(os.Stderr, "Usage: hac %s <entity_id> <value|+N|-N>\n", channelNames[channelIndex])
+		fmt.Fprintln(os.Stderr, "  value: 0-255 (absolute) or +N/-N (relative)")
+		return 1
+	}
+	entityID := args[0]
+	valStr := args[1]
+
+	if !strings.HasPrefix(entityID, "light.") {
+		fmt.Fprintf(os.Stderr, "Error: %s only works on light entities (got %q)\n", channelNames[channelIndex], entityID)
+		return 1
+	}
+
+	// Get current rgb_color, default [255,255,255]
+	rgb := [3]int{255, 255, 255}
+	entity, err := client.GetState(entityID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting state: %v\n", err)
+		return 1
+	}
+	if raw, ok := entity.Attributes["rgb_color"]; ok {
+		if arr, ok := raw.([]interface{}); ok && len(arr) == 3 {
+			for i, v := range arr {
+				switch c := v.(type) {
+				case float64:
+					rgb[i] = int(math.Round(c))
+				case int:
+					rgb[i] = c
+				}
+			}
+		}
+	}
+
+	var value int
+	if strings.HasPrefix(valStr, "+") || strings.HasPrefix(valStr, "-") {
+		delta, err := strconv.Atoi(valStr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid %s value: %q\n", channelNames[channelIndex], valStr)
+			return 1
+		}
+		value = rgb[channelIndex] + delta
+	} else {
+		val, err := strconv.Atoi(valStr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid %s value: %q\n", channelNames[channelIndex], valStr)
+			return 1
+		}
+		value = val
+	}
+
+	if value < 0 {
+		value = 0
+	} else if value > 255 {
+		value = 255
+	}
+	rgb[channelIndex] = value
+
+	payload := map[string]interface{}{
+		"entity_id": entityID,
+		"rgb_color": []int{rgb[0], rgb[1], rgb[2]},
+	}
+	_, err = client.CallService("light", "turn_on", payload)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	fmt.Printf("%s: rgb_color [%d, %d, %d]\n", entityID, rgb[0], rgb[1], rgb[2])
 	return 0
 }
 
@@ -352,6 +431,9 @@ Commands:
   list [filter]                              List entities (alias: ls)
   toggle <entity_id>                         Toggle a device
   brightness <entity_id> <value|+N|-N>       Set light brightness (alias: bri)
+  red <entity_id> <value|+N|-N>              Set light red channel (0-255)
+  green <entity_id> <value|+N|-N>            Set light green channel (0-255)
+  blue <entity_id> <value|+N|-N>             Set light blue channel (0-255)
   call <domain> <service> <entity_id> [json] Call a service
   state <entity_id>                          Print entity state
 
