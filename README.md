@@ -219,4 +219,4 @@ The TUI uses a WebSocket connection for both real-time state updates and service
 
 ## License
 
-MIT
+This project is licensed under the [GNU General Public License v2.0](LICENSE).
